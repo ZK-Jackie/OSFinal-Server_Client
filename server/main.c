@@ -1,3 +1,9 @@
-//
-// Created by jackie on 5/10/24.
-//
+#include "utils/param.h"
+
+void run(ServerParams params);
+
+
+int main(int argc, char *argv[]) {
+    run(parse_args(argc, argv));
+    return 0;
+}

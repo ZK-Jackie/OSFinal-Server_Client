@@ -6,4 +6,18 @@ set(CMAKE_CXX_COMPILER /usr/bin/g++)
 
 set(CMAKE_C_STANDARD 11)
 
-add_executable(server main.c)
+find_package(Threads REQUIRED)
+
+add_executable(server main.c
+        utils/param.c
+        utils/param.h
+        OSServerApplication.c
+        utils/log.c
+        utils/log.h
+        thread/thread.c
+        thread/thread.h
+        common/constants.h
+        socket/isocket.c
+        socket/isocket.h)
+
+target_link_libraries(server PRIVATE Threads::Threads)
