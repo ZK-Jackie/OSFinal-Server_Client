@@ -1,51 +1,77 @@
 #include "utils/param.h"
 #include "socket/isocket.h"
+#include <unistd.h>
 #include <stdlib.h>
 #include <pthread.h>
 
-void concur(int threadNum);
-void *concurRequest();
+typedef struct{
+    int threadNum;
+    int sleepTime;
+    struct hostent *server;
+    pthread_barrier_t concurBarrier;
+    pthread_mutex_t fifoMutex;
+}RequestSettings;
 
-void fifo(int threadNum);
+void concur(RequestSettings settings);
+void *concurRequest(void *args);
 
-pthread_barrier_t barrier;
-
-int sockfd = 0;
-struct hostent *server;
+void fifo(RequestSettings settings);
+void *fifoRequest(void *args);
 
 
 void run(ClientParams params) {
+    struct hostent *server;
     server = gethostbyname("localhost");
-    if (!params.WORKLOAD) {
-        concur(params.THREAD_NUM);
+
+    RequestSettings requestSettings = {params.threadNum, params.sleepTime, server};
+    if (!params.workload) {
+        concur(requestSettings);
     } else {
-        fifo(params.THREAD_NUM);
+        fifo(requestSettings);
     }
 }
 
-void concur(int threadNum) {
-    pthread_t *thread = malloc(threadNum * sizeof(pthread_t));
-    pthread_barrier_init(&barrier, NULL, threadNum); // 初始化屏障
-    for (int i = 0; i < threadNum; i++) {
-        pthread_create(&thread[i], NULL, concurRequest, NULL);
+void concur(RequestSettings settings) {
+    pthread_t *thread = malloc(settings.threadNum * sizeof(pthread_t));
+    pthread_barrier_init(&settings.concurBarrier, NULL, settings.threadNum); // 初始化屏障
+    for (int i = 0; i < settings.threadNum; i++) {
+        pthread_create(&thread[i], NULL, concurRequest, &settings);
     }
-    for (int i = 0; i < threadNum; i++) {
+    for (int i = 0; i < settings.threadNum; i++) {
         pthread_join(thread[i], NULL);
     }
     free(thread);
     thread = NULL;
 }
 
-void *concurRequest() {
-    // Request
+void *concurRequest(void *args) {
+    RequestSettings *settings = (RequestSettings *) args;
     while(1){
-//        iRequest();
-        iRequest2(server);
-        pthread_barrier_wait(&barrier);
+        iRequest2(settings->server);
+        pthread_barrier_wait(&settings->concurBarrier); // 屏障可以重复利用
+        sleep(settings->sleepTime);
     }
-    pthread_exit(NULL);
 }
 
-void fifo(int threadNum) {
+void fifo(RequestSettings settings) {
+    pthread_t *fifoThread = malloc(settings.threadNum * sizeof(pthread_t));
+    pthread_mutex_init(&settings.fifoMutex, NULL); // 初始化互斥锁
+    for (int i = 0; i < settings.threadNum; i++) {
+        pthread_create(&fifoThread[i], NULL, fifoRequest, &settings);
+    }
+    for (int i = 0; i < settings.threadNum; i++) {
+        pthread_join(fifoThread[i], NULL);
+    }
+    free(fifoThread);
+    fifoThread = NULL;
+}
 
+void *fifoRequest(void *args) {
+    RequestSettings *settings = (RequestSettings *) args;
+    while(1){
+        pthread_mutex_lock(&settings->fifoMutex);
+        iRequest2(settings->server);
+        sleep(settings->sleepTime);
+        pthread_mutex_unlock(&settings->fifoMutex);
+    }
 }
