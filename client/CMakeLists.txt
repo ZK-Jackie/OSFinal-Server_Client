@@ -6,4 +6,11 @@ set(CMAKE_CXX_COMPILER /usr/bin/g++)
 
 set(CMAKE_C_STANDARD 11)
 
-add_executable(client main.c)
+add_executable(client main.c
+        OSClientApplication.c
+        utils/log.c
+        utils/log.h
+        utils/param.c
+        utils/param.h
+        socket/isocket.c
+        socket/isocket.h)
