@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include "param.h"
 
-ServerParams parse_args(int argc, char *argv[]) {
+ServerParams parseArgs(int argc, char *argv[]) {
     ServerParams params = {0, 0, NULL}; // Initialize to 0
 
     for (int i = 1; i < argc; i++) {

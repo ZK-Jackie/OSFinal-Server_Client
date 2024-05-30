@@ -1,4 +1,6 @@
+#include "global.h"
 #include "thread.h"
+#include "param.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -6,38 +8,7 @@ ThreadPool *pool = NULL;
 
 void *routine(void *arg);
 
-TaskBufferQueue *buffer_init(int bufferSize);
-
-
-/**
- * 池子自动管理机
- * */
-void *pool_auto_manager(void *arg) {
-    ServerParams args = *((ServerParams*) arg);
-    // 1. 初始化线程池
-    pool_init(args);
-    // 2. 回调
-    if (args.callback != NULL) {
-        // 获取形参列表，列表有一个参数
-        args.callback(NULL);
-    }
-    // 3. 维持线程池
-    for (int i = 0; i < args.THREAD_NUM; i++) {
-        pthread_join(pool->threadList[i], NULL);
-    }
-    return NULL;
-}
-
-
-/**
- * 线程池维持
- * */
-void *pool_maintain(){
-    for (int i = 0; i < pool->threadNum; i++) {
-        pthread_join(pool->threadList[i], NULL);
-    }
-    return NULL;
-}
+TaskBufferQueue *bufferInit(int bufferSize);
 
 
 /**
@@ -48,35 +19,33 @@ void *pool_maintain(){
  * @param isCallback 是否回调
  * @param ... 回调函数
  * */
-void pool_init(ServerParams args) {
+void initPools(ServerParams args) {
+    logger.info("Thread pool & buffer pool init.", LOG_INFO);
     pool = (ThreadPool *) malloc(sizeof(ThreadPool));
-    // 1. 线程数组初始化
-    bool isThreadCreateSuccess = false;
-    pthread_t *initThreadList = (pthread_t *) malloc(sizeof(pthread_t) * args.THREAD_NUM);
-    for (int i = 0; i < args.THREAD_NUM; i++) {
-        int *arg = (int *) malloc(sizeof(int));
-        if (arg == NULL) {
-            fprintf(stderr, "Couldn't allocate memory for thread arg when index = %d .\n", i);
-            exit(EXIT_FAILURE);
-        }
-        *arg = i;
-        isThreadCreateSuccess = !pthread_create(&initThreadList[i], NULL, routine, arg);
-        if (!isThreadCreateSuccess) {
-            fprintf(stderr, "Couldn't create thread for unknown reason when index = %d .\n", i);
-            exit(EXIT_FAILURE);
-        }
-    }
-    // 2. 信号量初始化
+    // 1. 缓冲任务环形队列初始化
+    TaskBufferQueue *initBuffers = bufferInit(args.BUFFER_SIZE);
+    // 2. 线程池信号量初始化
     bool isSemInitSuccess = false;
     isSemInitSuccess = sem_init(&pool->idle, 0, args.THREAD_NUM) == 0;
     isSemInitSuccess |= sem_init(&pool->work, 0, 0) == 0;
     isSemInitSuccess |= sem_init(&pool->mutex, 0, 1) == 0;
     if (!isSemInitSuccess) {
-        fprintf(stderr, "Couldn't init thread semaphore for unknown reason.\n");
-        exit(EXIT_FAILURE);
+        exit_error("Couldn't init semaphore for unknown reason.");
     }
-    // 3. 缓冲任务环形队列初始化，能到此处，缓冲池创建一定成功
-    TaskBufferQueue *initBuffers = buffer_init(args.BUFFER_SIZE);
+    // 3. 线程数组初始化，创建线程
+    bool isThreadCreateSuccess = false;
+    pthread_t *initThreadList = (pthread_t *) malloc(sizeof(pthread_t) * args.THREAD_NUM);
+    for (int i = 0; i < args.THREAD_NUM; i++) {
+        int *arg = (int *) malloc(sizeof(int));
+        if (arg == NULL) {
+            exit_error("Couldn't allocate memory for thread arg.");
+        }
+        *arg = i;
+        isThreadCreateSuccess = !pthread_create(&initThreadList[i], NULL, routine, arg);
+        if (!isThreadCreateSuccess) {
+            exit_error("Couldn't create thread for unknown reason.");
+        }
+    }
     // 4.装
     pool->buffer = initBuffers;
     pool->bufferSize = args.BUFFER_SIZE;
@@ -87,9 +56,10 @@ void pool_init(ServerParams args) {
         // 获取形参列表，列表有一个参数
         args.callback(NULL);
     }
+    logger.info("Thread pool & buffer pool init success.", LOG_INFO);
 }
 
-TaskBufferQueue *buffer_init(int bufferSize) {
+TaskBufferQueue *bufferInit(int bufferSize) {
     // 1. 构造&初始化缓冲环形队列
     TaskNode *head = (TaskNode *) malloc(sizeof(TaskNode));    // 头节点
     if (head == NULL) {
@@ -115,26 +85,26 @@ TaskBufferQueue *buffer_init(int bufferSize) {
     }
     temp->next = head;  // 尾节点指回头节点
     // 2. 装
-    TaskBufferQueue *buffer_queue = (TaskBufferQueue *) malloc(sizeof(TaskBufferQueue));
-    if (buffer_queue == NULL) {
+    TaskBufferQueue *bufferQueue = (TaskBufferQueue *) malloc(sizeof(TaskBufferQueue));
+    if (bufferQueue == NULL) {
         fprintf(stderr, "Couldn't allocate memory for buffer queue.\n");
         exit(EXIT_FAILURE);
     }
-    buffer_queue->head = head;
-    buffer_queue->size = bufferSize;
-    buffer_queue->front = head; // 初始时都指向头节点
-    buffer_queue->rear = head;
-    // 2.1 信号量初始化
+    bufferQueue->head = head;
+    bufferQueue->size = bufferSize;
+    bufferQueue->front = head; // 初始时都指向头节点
+    bufferQueue->rear = head;
+    // 3.队列信号量初始化
     bool isSemInitSuccess = false;
-    isSemInitSuccess = sem_init(&buffer_queue->mutex, 0, 1) == 0;
-    isSemInitSuccess |= sem_init(&buffer_queue->undo, 0, 0) == 0;
-    isSemInitSuccess |= sem_init(&buffer_queue->done, 0, bufferSize) == 0;
+    isSemInitSuccess = sem_init(&bufferQueue->mutex, 0, 1) == 0;
+    isSemInitSuccess |= sem_init(&bufferQueue->undo, 0, 0) == 0;
+    isSemInitSuccess |= sem_init(&bufferQueue->done, 0, bufferSize) == 0;
     if (!isSemInitSuccess) {
         fprintf(stderr, "Couldn't init buffer semaphore for unknown reason.\n");
         exit(EXIT_FAILURE);
     }
     // 3. 返回
-    return buffer_queue;
+    return bufferQueue;
 }
 
 
@@ -144,7 +114,7 @@ TaskBufferQueue *buffer_init(int bufferSize) {
  * @param task 要执行的任务
  * @return 是否添加成功
  * */
-bool add_task(Task *task) {
+bool addTask(Task *task) {
     // 1. 等待空闲位置和缓冲区锁
     sem_wait(&pool->buffer->done);
     sem_wait(&pool->buffer->mutex);
@@ -212,12 +182,11 @@ bool isBufferEmpty() {
  * 线程工作函数
  *
  * @param arg 线程编号
- * @return 无返回值
  * */
 void *routine(void *arg) {
     int id = *((int *) arg);
     // TODO work
-    while (1) {
+    while (running) {
         // 1. 等待有任务
         sem_wait(&pool->work);
         // 2. 获取并执行任务
@@ -227,4 +196,5 @@ void *routine(void *arg) {
         sem_post(&pool->idle);
     }
     free(arg);
+    pthread_exit(NULL);
 }

@@ -6,6 +6,6 @@ typedef struct {
     void (*callback)(void *);
 } ServerParams;
 
-ServerParams parse_args(int argc, char *argv[]);
+ServerParams parseArgs(int argc, char *argv[]);
 
 #endif //SERVER_PARAM_H
