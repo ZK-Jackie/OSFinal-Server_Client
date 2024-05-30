@@ -15,7 +15,7 @@ include_directories(../common/include)
 # 自动搜索、链接src目录下的所有.c .h文件
 file(GLOB_RECURSE SOURCES "src/*.c" "include/*.h")
 # 添加common目录下的所有.c文件
-file(GLOB_RECURSE COMMON_SOURCES "../common/src/*.c")
+file(GLOB_RECURSE COMMON_SOURCES "../common/src/*.c" "../common/include/*.h")
 
 add_executable(server  ${SOURCES} ${COMMON_SOURCES})
 

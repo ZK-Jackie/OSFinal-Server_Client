@@ -6,6 +6,6 @@ typedef struct {
     int sleepTime;
 } ClientParams;
 
-ClientParams parse_args(int argc, char *argv[]);
+ClientParams parseArgs(int argc, char *argv[]);
 
 #endif //SERVER_PARAM_H

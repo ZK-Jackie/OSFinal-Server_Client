@@ -5,7 +5,7 @@
 #include "global.h"
 
 
-ClientParams parse_args(int argc, char *argv[]) {
+ClientParams parseArgs(int argc, char *argv[]) {
     ClientParams params = {-1, -1, -1}; // Initialize to 0
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--thread") == 0 ||

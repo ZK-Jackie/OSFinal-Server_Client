@@ -11,9 +11,11 @@ find_package(Threads REQUIRED)
 
 # 添加头文件搜索路径
 include_directories(${CMAKE_SOURCE_DIR}/include)
+include_directories(../common/include)
 # 自动搜索、链接src目录下的所有.c .h文件
 file(GLOB_RECURSE SOURCES "src/*.c" "include/*.h")
-add_executable(client  ${SOURCES})
+file(GLOB_RECURSE COMMON_RESOURCES "../common/src/*.c" "../common/include/*.h")
+add_executable(client ${SOURCES} ${COMMON_RESOURCES})
 
 # 添加pthread链接库(2/2)
 target_link_libraries(client PRIVATE Threads::Threads)

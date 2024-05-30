@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
-
+#define CLIENT_APP_VERSION "1.0.0"
 
 typedef struct {
     char uid[10];
@@ -30,11 +30,11 @@ void *fifoRequest(void *args);
 void run(int argc, char *argv[]) {
     // 1. 初始化日志线程
     logger = initLogger();
+    initDevice(NULL);
     // 2. 解析参数
-    ClientParams params = parse_args(argc, argv);
+    ClientParams params = parseArgs(argc, argv);
     // 3. 初始化socket
-    struct hostent *server;
-    server = gethostbyname("localhost");
+    struct hostent *server = gethostbyname("localhost");
     if (server == NULL) {
         exit_error("No such host called 'localhost'");
     }
@@ -42,7 +42,8 @@ void run(int argc, char *argv[]) {
     RequestSettings requestSettings = {
             .threadNum = params.threadNum,
             .sleepTime = params.sleepTime,
-            .server = server};
+            .server = server
+    };
     if (!params.workload) {
         logger.info("Running in concurrent mode", LOG_INFO);
         concur(requestSettings);
@@ -78,24 +79,26 @@ void concur(RequestSettings settings) {
         pthread_join(thread[i], NULL);
     }
     free(thread);
+    free(settings.concurBarrier);
     thread = NULL;
+    settings.concurBarrier = NULL;
 }
 
 void *concurRequest(void *args) {
     RequestSettings *settings = (RequestSettings *) args;
     while (running) {
         // 1. 准备请求数据
-        char sendBuffer[1024];
-        memset(sendBuffer, 0, 1024);
-        snprintf(sendBuffer, 1024, "{\"name\":\"%s\", \"mode\": \"concurrent\"}", settings->uid);
+        char sendBuffer[POST_CONTENT_LEN];
+        memset(sendBuffer, 0, POST_CONTENT_LEN);
+        snprintf(sendBuffer, POST_CONTENT_LEN, "{\"name\":\"%s\", \"mode\": \"concurrent\"}", settings->uid);
         logger.info("[%s]\tRequest: %s.", LOG_INFO, settings->uid, sendBuffer);
         // 2. 发送请求
         char *res = req.post(settings->server, "{\"name\":\"concur\"}");
         // 3. 处理响应
-        logger.info("[%s]\tReceive response: %s.", LOG_INFO, settings->uid, res);
-        free(res);  // 请求strdup返回的内存
+        logger.info("[%s]\tReceive from: %s, response: %s", LOG_INFO, settings->uid, getHeader(res, "Server"), getLoad(res));
+        free(res);  // 释放请求strdup返回的内存
         pthread_barrier_wait(settings->concurBarrier); // 屏障可以重复利用
-        // 4. 打印分割线
+        // 4. 让权
         sleep(settings->sleepTime);
     }
     free(settings);
@@ -138,15 +141,15 @@ void *fifoRequest(void *args) {
     while (running) {
         pthread_mutex_lock(settings->fifoMutex);
         // 1. 准备请求数据
-        char sendBuffer[1024];
-        memset(sendBuffer, 0, 1024);
-        snprintf(sendBuffer, 1024, "name=%s&mode=fifo", settings->uid);
+        char sendBuffer[GET_CONTENT_LEN];
+        memset(sendBuffer, 0, GET_CONTENT_LEN);
+        snprintf(sendBuffer, GET_CONTENT_LEN, "name=%s&mode=fifo", settings->uid);
         logger.info("[%s]\tRequest: %s.", LOG_INFO, settings->uid, sendBuffer);
-        // 2. 发送请求
+        // 2. 发送请求，获得回应
         char *res = req.get(settings->server, sendBuffer);
         // 3. 处理响应
-        logger.info("[%s]\tReceive response: %s.", LOG_INFO, settings->uid, res);
-        free(res);  // 请求strdup返回的内存
+        logger.info("[%s]\tReceive from: %s, response: %s", LOG_INFO, settings->uid, getHeader(res, "Server"), getLoad(res));
+        free(res);  // 释放请求strdup返回的内存
         pthread_mutex_unlock(settings->fifoMutex);
         sleep(settings->sleepTime);
     }

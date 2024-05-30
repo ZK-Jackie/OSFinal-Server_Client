@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-char *DEVICE_UID = NULL;
+#define SERVER_APP_VERSION "1.0.0"
 
 void handleRequest(void *args);
 
@@ -24,7 +24,7 @@ void run(int argc, char *argv[]){
     logger = initLogger();
     ServerParams params = parseArgs(argc, argv);
     // 2. 线程池 & 缓冲池初始化
-    initPools(params);
+    initPools(params.THREAD_NUM, params.BUFFER_SIZE, NULL);
     // 3. 监听socket初始化
     iListen(&handleRequest);
     // 4. 程序结束
@@ -38,13 +38,13 @@ void handleRequest(void *args){
     char buffer[ACCEPT_MAX_SIZE];
     getRequest(newsockfd, buffer);
     // 2. 解析数据
-    char *deviceToken = getReqHeaderToken(buffer);
+    char *deviceToken = getHeader(buffer, "Token");
     char *request = requestResolver(buffer);
     // 3. 业务处理
     logger.info("From: %s, request: %s", LOG_INFO, deviceToken, request);
     // 4. 响应数据，把请求数据放入data中
     char *resp = (char *)malloc(strlen(request) + 100);
-    sprintf(resp, "{\"code\": 200, \"msg\": \"success\", \"jsonObj\": %s}", request);
+    sprintf(resp, "{\"code\": 200, \"msg\": \"success\", \"data\": %s}", request);
     response(newsockfd, resp);
     // 5. 释放资源
     free(resp);
