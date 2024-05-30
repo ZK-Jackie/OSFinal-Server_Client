@@ -38,7 +38,7 @@ typedef struct pool{
 }ThreadPool;
 
 
-void initPools(ServerParams args);
+void initPools(int threadNum, int bufferSize, void (*callback)(void *arg), ...);
 bool addTask(Task *task);
 
 // 池

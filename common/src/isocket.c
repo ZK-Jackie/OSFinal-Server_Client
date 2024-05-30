@@ -8,26 +8,34 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-const char POST_REQ[POST_MAX_SIZE] = "POST / HTTP/1.1\r\n"
-                                     "Host: %s\r\n"
-                                     "Token: %s\r\n"
-                                     "Content-Type: application/json;charset=utf-8\r\n"
-                                     "Content-Length: %d\r\n"
-                                     "Accept: */*\r\n"
-                                     "\r\n"
-                                     "%s";
-const char GET_REQ[GET_MAX_SIZE] = "GET / HTTP/1.1\r\n"
-                                   "Host: %s\r\n"
-                                   "Token: %s\r\n"
-                                   "Accept: */*\r\n"
-                                   "\r\n";
-const char *RESPONSE = "HTTP/1.1 200 OK\r\n"
+const char POST_REQ[] = "POST / HTTP/1.1\r\n"
+                         "Host: %s\r\n"
+                         "Token: %s\r\n"
+                         "Content-Type: application/json;charset=utf-8\r\n"
+                         "Content-Length: %d\r\n"
+                         "Accept: */*\r\n"
+                         "\r\n"
+                         "%s";
+const int POST_REQ_LEN = strlen(POST_REQ);
+const int POST_CONTENT_LEN = POST_MAX_SIZE - POST_REQ_LEN;
+
+const char GET_REQ[] = "GET / HTTP/1.1\r\n"
+                       "Host: %s\r\n"
+                       "Token: %s\r\n"
+                       "Accept: */*\r\n"
+                       "\r\n";
+const int GET_REQ_LEN = strlen(POST_REQ);
+const int GET_CONTENT_LEN = GET_MAX_SIZE - GET_REQ_LEN;
+
+const char RESPONSE[] = "HTTP/1.1 200 OK\r\n"
                        "Content-Type: application/json;charset=utf-8\r\n"
                        "Content-Length: %d\r\n"
                        "Connection: close\r\n"
                        "Server: SWS/1.0 (Unix) (Ubuntu/Linux)\r\n"
                        "\r\n"
                        "%s";
+const int RESPONSE_LEN = strlen(RESPONSE);
+const int RESPONSE_CONTENT_LEN = RESPONSE_MAX_SIZE - RESPONSE_LEN;
 
 
 char *get(struct hostent *server, const char *getReqFormat);
@@ -38,9 +46,8 @@ Req req = {
 };
 
 void iListen(void (*requestHandler)(void *arg)){
-    // 1. 创建socket描述符，domain -- 协议（当前为IPv4） type -- 类型（当前为TCP）
-    int sockfd;
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    // 1. 创建socket描述符，domain -- 协议（当前为IPv4） type -- 类型（当前为TCP） protocol -- 协议（0表示默认）
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {   // 创建失败会返回 -1
         exit_error("ERROR opening socket");
     }
@@ -61,8 +68,8 @@ void iListen(void (*requestHandler)(void *arg)){
     socklen_t client = sizeof(cli_addr);
     logger.info("Server is listening on port %d", LOG_INFO, SERVER_PORT);
     while(running){
-        int newsockfd; // 获取接收到的新的socket描述符
-        newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &client);
+        // 获取接收到的新的socket描述符
+        int newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &client);
         if (newsockfd < 0) {
             exit_error("ERROR on accept");
         }
@@ -126,6 +133,8 @@ void iRequest() {
 /**
  * 请求服务器
  * @note 采用主调函数提供的gethostbyname的服务器信息进行链接，占用资源较少
+ * @param msg 请求数据
+ * @param server 服务器信息
  * */
 char * iRequest2(struct hostent *server, const char *msg) {
     // 0. 检查参数
@@ -133,8 +142,7 @@ char * iRequest2(struct hostent *server, const char *msg) {
         exit_error("ERROR, invalid parameter");
     }
     // 1. 创建socket描述符
-    int sockfd;
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
         exit_error("ERROR opening socket");
     }
@@ -153,22 +161,20 @@ char * iRequest2(struct hostent *server, const char *msg) {
         exit_error("ERROR connecting");
     }
     // 5. 发送请求
-    char buffer[256];
-    bzero(buffer, 256);
-    strcpy(buffer, msg);
-    int n = (int)write(sockfd, buffer, strlen(buffer));
-    if (n < 0) {
+    int status = (int)write(sockfd, msg, strlen(msg));
+    if (status < 0) {
         exit_error("ERROR writing to socket");
     }
     // 6. 接收响应
-    bzero(buffer, 256);
-    n = (int)read(sockfd, buffer, 255);
-    if (n < 0) {
+    char res[RESPONSE_MAX_SIZE];
+    bzero(res, RESPONSE_MAX_SIZE);
+    status = (int)read(sockfd, res, RESPONSE_MAX_SIZE);
+    if (status < 0) {
         exit_error("ERROR reading from socket");
     }
     // 7. 关闭socket
     close(sockfd);
-    return strdup(buffer);
+    return strdup(res);
 }
 
 /**
@@ -178,14 +184,21 @@ char * iRequest2(struct hostent *server, const char *msg) {
  * @return 响应数据
  * */
 char *get(struct hostent *server, const char *getReqFormat) {
+    if (server == NULL || getReqFormat == NULL) {
+        logger.info("ERROR, invalid GET request parameter", LOG_ERROR);
+        return NULL;
+    }else if (strlen(getReqFormat) > GET_CONTENT_LEN) {
+        logger.info("ERROR, GET request too long", LOG_ERROR);
+        return NULL;
+    }
     // 组装GET请求报文
-    char host_buffer[GET_MAX_SIZE];
+    char host_buffer[GET_CONTENT_LEN];
     strcpy(host_buffer, server->h_name);
     strcat(host_buffer, "?");
     strcat(host_buffer, getReqFormat);
     char buffer[GET_MAX_SIZE];
-    snprintf(buffer, GET_MAX_SIZE, GET_REQ, DEVICE_UID, host_buffer);
-    return iRequest2(server, host_buffer);
+    snprintf(buffer, GET_MAX_SIZE, GET_REQ, host_buffer, DEVICE_UID);
+    return iRequest2(server, buffer);
 }
 
 /**
@@ -195,6 +208,13 @@ char *get(struct hostent *server, const char *getReqFormat) {
  * @return 响应数据
  * */
 char *post(struct hostent *server, const char *msg) {
+    if (server == NULL || msg == NULL) {
+        logger.info("ERROR, invalid POST request parameter", LOG_ERROR);
+        return NULL;
+    }else if (strlen(msg) > POST_CONTENT_LEN) {
+        logger.info("ERROR, POST request too long", LOG_ERROR);
+        return NULL;
+    }
     // 组装POST请求报文
     char buffer[POST_MAX_SIZE];
     snprintf(buffer, POST_MAX_SIZE, POST_REQ, server->h_name, DEVICE_UID, (int)strlen(msg), msg);
@@ -203,34 +223,50 @@ char *post(struct hostent *server, const char *msg) {
 
 /**
  * 从请求中获取Token
- * @param request 请求报文
+ * @param msg 请求报文
  * @return Token
  * */
-char *getReqHeaderToken(const char *request) {
-    char *reqBak = strdup(request);
-    // 1.定义Token头部，在request中查找子串起始位置
-    const char* tokenHeader = "Token: ";
-    char* tokenStart = strstr(reqBak, tokenHeader);
-    if (tokenStart == NULL) {
+char *getHeader(const char *msg, const char *header) {
+    char *msgBak = strdup(msg);
+    // 1.定义header头部，在msg中查找子串起始位置
+    char *valStart = strstr(msgBak, header);
+    if (valStart == NULL) {
         logger.info("Token header not found", LOG_ERROR);
         return NULL;
     }
-    // 2.找到Token Value的起始位置
-    tokenStart += strlen(tokenHeader);
-    // 3.找到Token Value的结束位置
-    char* tokenEnd = strstr(tokenStart, "\r\n");
-    if (tokenEnd == NULL) {
-        logger.info("Malformed request, no end of line found", LOG_ERROR);
+    // 2.找到header值的起始位置，即冒号、空格后
+    valStart += strlen(header) + 2;
+    // 3.找到header值的结束位置
+    char* valEnd = strstr(valStart, "\r\n");
+    if (valEnd == NULL) {
+        logger.info("Malformed msg, no end of line found", LOG_ERROR);
         return NULL;
     }
     // 4.计算Token Value的长度
-    size_t tokenLength = tokenEnd - tokenStart;
+    size_t tokenLength = valEnd - valStart;
     // 5.复制Token Value到新的字符串
     char* token = malloc(tokenLength + 1);
-    strncpy(token, tokenStart, tokenLength);
+    strncpy(token, valStart, tokenLength);
     token[tokenLength] = '\0'; // Null-terminate the string
-    free(reqBak);
+    free(msgBak);
     return token;
+}
+
+char *getLoad(const char *msg) {
+    char *msgBak = strdup(msg);
+    // 1.找到空行
+    char *loadStart = strstr(msgBak, "\r\n\r\n");
+    if (loadStart == NULL) {
+        logger.info("Malformed msg, no end of header found", LOG_ERROR);
+        return NULL;
+    }
+    // 2.计算载荷长度
+    size_t loadLength = strlen(loadStart + 4);
+    // 3.复制载荷到新的字符串
+    char *load = malloc(loadLength + 1);
+    strcpy(load, loadStart + 4);
+    free(msgBak);
+    return load;
 }
 
 /**
@@ -278,7 +314,7 @@ char *getReq2JSON(const char *getParams){
  * @param request 请求报文
  * @return JSON String
  * */
-char *requestResolver(char *request) {
+char *requestResolver(const char *request) {
     char *reqBak = strdup(request);
     // 1. 查看请求类型
     char *method = strtok(reqBak, " ");
@@ -289,32 +325,33 @@ char *requestResolver(char *request) {
     }
     // 2. 解析请求
     if (strcmp(method, "GET") == 0) {
-        char *path = strtok(NULL, " ");
-        if (path == NULL) {
+        char *host = getHeader(request, "Host");
+        if (host == NULL) {
             free(reqBak);
             logger.info("ERROR, invalid request, reading: %s", LOG_ERROR, request);
             return NULL;
         }
         // 找问号
-        strtok(path, "?");
+        strtok(host, "?");
         char *ret = getReq2JSON(strtok(NULL, "?"));
         free(reqBak);
         return ret;
     } else if (strcmp(method, "POST") == 0) {
-        strtok(reqBak, "\r\n\r\n");
-        char *content = strtok(NULL, "\r\n\r\n");
+        char *content = getLoad(request);
         if (content == NULL) {
             free(reqBak);
             logger.info("ERROR, invalid request, reading: %s", LOG_ERROR, request);
             return NULL;
         }
-        return strdup(content);
+        free(reqBak);
+        return content;
     }else{
         free(reqBak);
         logger.info("Unrecognized request", LOG_ERROR);
         return NULL;
     }
 }
+
 
 /**
  * 从请求中获取请求数据

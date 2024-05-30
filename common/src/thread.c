@@ -19,14 +19,14 @@ TaskBufferQueue *bufferInit(int bufferSize);
  * @param isCallback 是否回调
  * @param ... 回调函数
  * */
-void initPools(ServerParams args) {
+void initPools(int threadNum, int bufferSize, void (*callback)(void *arg), ...) {
     logger.info("Thread pool & buffer pool init.", LOG_INFO);
     pool = (ThreadPool *) malloc(sizeof(ThreadPool));
     // 1. 缓冲任务环形队列初始化
-    TaskBufferQueue *initBuffers = bufferInit(args.BUFFER_SIZE);
+    TaskBufferQueue *initBuffers = bufferInit(bufferSize);
     // 2. 线程池信号量初始化
     bool isSemInitSuccess = false;
-    isSemInitSuccess = sem_init(&pool->idle, 0, args.THREAD_NUM) == 0;
+    isSemInitSuccess = sem_init(&pool->idle, 0, threadNum) == 0;
     isSemInitSuccess |= sem_init(&pool->work, 0, 0) == 0;
     isSemInitSuccess |= sem_init(&pool->mutex, 0, 1) == 0;
     if (!isSemInitSuccess) {
@@ -34,8 +34,8 @@ void initPools(ServerParams args) {
     }
     // 3. 线程数组初始化，创建线程
     bool isThreadCreateSuccess = false;
-    pthread_t *initThreadList = (pthread_t *) malloc(sizeof(pthread_t) * args.THREAD_NUM);
-    for (int i = 0; i < args.THREAD_NUM; i++) {
+    pthread_t *initThreadList = (pthread_t *) malloc(sizeof(pthread_t) * threadNum);
+    for (int i = 0; i < threadNum; i++) {
         int *arg = (int *) malloc(sizeof(int));
         if (arg == NULL) {
             exit_error("Couldn't allocate memory for thread arg.");
@@ -48,13 +48,13 @@ void initPools(ServerParams args) {
     }
     // 4.装
     pool->buffer = initBuffers;
-    pool->bufferSize = args.BUFFER_SIZE;
-    pool->threadNum = args.THREAD_NUM;
+    pool->bufferSize = bufferSize;
+    pool->threadNum = threadNum;
     pool->threadList = initThreadList;
     // 5. 回调
-    if (args.callback != NULL) {
+    if (callback != NULL) {
         // 获取形参列表，列表有一个参数
-        args.callback(NULL);
+        callback(NULL);
     }
     logger.info("Thread pool & buffer pool init success.", LOG_INFO);
 }

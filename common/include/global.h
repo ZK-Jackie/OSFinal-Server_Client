@@ -6,6 +6,7 @@
 extern char *DEVICE_UID;
 extern Logger logger;
 extern volatile int running;
+void initDevice(const char *customUid);
 extern void exit_error(const char *msg);
 
 #endif
