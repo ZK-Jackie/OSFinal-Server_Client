@@ -6,11 +6,14 @@ set(CMAKE_CXX_COMPILER /usr/bin/g++)
 
 set(CMAKE_C_STANDARD 11)
 
-add_executable(client main.c
-        OSClientApplication.c
-        utils/log.c
-        utils/log.h
-        utils/param.c
-        utils/param.h
-        socket/isocket.c
-        socket/isocket.h)
+# 添加pthread链接库(1/2)
+find_package(Threads REQUIRED)
+
+# 添加头文件搜索路径
+include_directories(${CMAKE_SOURCE_DIR}/include)
+# 自动搜索、链接src目录下的所有.c .h文件
+file(GLOB_RECURSE SOURCES "src/*.c" "include/*.h")
+add_executable(client  ${SOURCES})
+
+# 添加pthread链接库(2/2)
+target_link_libraries(client PRIVATE Threads::Threads)
