@@ -1,9 +1,9 @@
 #ifndef SERVER_PARAM_H
 #define SERVER_PARAM_H
 typedef struct {
-    int THREAD_NUM;
-    int WORKLOAD;
-    void (*callback)(void *);
+    int threadNum;
+    int workload;
+    int sleepTime;
 } ClientParams;
 
 ClientParams parse_args(int argc, char *argv[]);
