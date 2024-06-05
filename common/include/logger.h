@@ -21,6 +21,7 @@ typedef struct{
 
 
 extern Logger initLogger();
+void destroyLogger();
 
 
 #endif //SERVER_LOG_H

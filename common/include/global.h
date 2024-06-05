@@ -4,9 +4,12 @@
 #define UID_LEN 5
 
 extern char *DEVICE_UID;
+extern void initDevice(const char *customUid);
+
 extern Logger logger;
 extern volatile int running;
-void initDevice(const char *customUid);
+
 extern void exit_error(const char *msg);
+extern void destroyDevice();
 
 #endif

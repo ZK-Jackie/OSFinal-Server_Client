@@ -1,23 +1,21 @@
 #include "global.h"
 #include "thread.h"
-#include "param.h"
 #include <stdio.h>
 #include <stdlib.h>
 
 ThreadPool *pool = NULL;
 
-void *routine(void *arg);
+void *routine();
 
 TaskBufferQueue *bufferInit(int bufferSize);
 
 
 /**
  * 初始化线程池
- *
  * @param threadNum 线程数量
  * @param bufferSize 缓冲区大小
- * @param isCallback 是否回调
- * @param ... 回调函数
+ * @param callback 回调函数
+ * @param ... 回调函数所需参数，可选
  * */
 void initPools(int threadNum, int bufferSize, void (*callback)(void *arg), ...) {
     logger.info("Thread pool & buffer pool init.", LOG_INFO);
@@ -36,12 +34,7 @@ void initPools(int threadNum, int bufferSize, void (*callback)(void *arg), ...) 
     bool isThreadCreateSuccess = false;
     pthread_t *initThreadList = (pthread_t *) malloc(sizeof(pthread_t) * threadNum);
     for (int i = 0; i < threadNum; i++) {
-        int *arg = (int *) malloc(sizeof(int));
-        if (arg == NULL) {
-            exit_error("Couldn't allocate memory for thread arg.");
-        }
-        *arg = i;
-        isThreadCreateSuccess = !pthread_create(&initThreadList[i], NULL, routine, arg);
+        isThreadCreateSuccess = !pthread_create(&initThreadList[i], NULL, routine, NULL);
         if (!isThreadCreateSuccess) {
             exit_error("Couldn't create thread for unknown reason.");
         }
@@ -59,6 +52,12 @@ void initPools(int threadNum, int bufferSize, void (*callback)(void *arg), ...) 
     logger.info("Thread pool & buffer pool init success.", LOG_INFO);
 }
 
+
+/**
+ * 初始化缓冲区
+ * @param bufferSize 缓冲区大小
+ * @return 缓冲队列
+ * */
 TaskBufferQueue *bufferInit(int bufferSize) {
     // 1. 构造&初始化缓冲环形队列
     TaskNode *head = (TaskNode *) malloc(sizeof(TaskNode));    // 头节点
@@ -110,7 +109,6 @@ TaskBufferQueue *bufferInit(int bufferSize) {
 
 /**
  * 添加任务到缓冲区
- *
  * @param task 要执行的任务
  * @return 是否添加成功
  * */
@@ -130,12 +128,12 @@ bool addTask(Task *task) {
     return true;
 }
 
+
 /**
  * 发送执行任务给线程
- *
  * @return 任务
  * */
-Task *push_task() {
+Task *pushTask() {
     // 等待队列中有任务
     sem_wait(&pool->buffer->undo);
     // 获取队列的互斥锁
@@ -157,9 +155,9 @@ Task *push_task() {
     return task;
 }
 
+
 /**
  * 判断缓冲区是否已满
- *
  * @return 是否已满
  * @note 由于采用的是环形队列，本环形队列中rear所指向的位置一直是空的，&#10;所以当rear下一个为front时，说明缓冲区已满
  * */
@@ -167,9 +165,9 @@ bool isBufferFull() {
     return pool->buffer->rear->next == pool->buffer->front;
 }
 
+
 /**
  * 判断缓冲区是否为空
- *
  * @return 是否为空
  * @note 由于采用的是环形队列，当front和rear指向同一位置时，说明缓冲区为空
  * */
@@ -180,21 +178,19 @@ bool isBufferEmpty() {
 
 /**
  * 线程工作函数
- *
- * @param arg 线程编号
  * */
-void *routine(void *arg) {
-    int id = *((int *) arg);
-    // TODO work
+void *routine() {
     while (running) {
         // 1. 等待有任务
         sem_wait(&pool->work);
         // 2. 获取并执行任务
-        Task *task = push_task();
+        Task *task = pushTask();
         task->func(task->arg);
         // 3. 释放空闲信号量
         sem_post(&pool->idle);
+        // 4. 释放任务
+        free(task->arg);
+        free(task);
     }
-    free(arg);
     pthread_exit(NULL);
 }

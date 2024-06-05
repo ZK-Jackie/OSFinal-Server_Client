@@ -4,11 +4,10 @@
 #include <pthread.h>
 #include <semaphore.h>
 #include <stdbool.h>
-#include "param.h"
 
 typedef struct task{
     void *arg;
-    void (*func)(void *);
+    void *(*func)(void *);
 }Task;
 
 typedef struct taskQueueBufferNode{

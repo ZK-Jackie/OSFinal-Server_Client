@@ -6,6 +6,7 @@
 #define POST_MAX_SIZE 2048
 #define ACCEPT_MAX_SIZE 2048
 #define RESPONSE_MAX_SIZE 2048
+
 #include <netdb.h>
 
 extern const char GET_REQ[];
@@ -20,7 +21,7 @@ typedef struct request{
 }Req;
 
 extern Req req;
-void iListen(void (*requestHandler)(void *arg));
+void iListen(void *(*reqHandler)(void *arg));
 void getRequest(int sockfd, char *buffer);
 char *getHeader(const char *msg, const char *header);
 char *getLoad(const char *msg);

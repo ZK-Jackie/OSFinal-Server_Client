@@ -1,7 +1,6 @@
 #include "global.h"
 #include "param.h"
 #include "isocket.h"
-#include <stdbool.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -29,7 +28,6 @@ void *fifoRequest(void *args);
 
 void run(int argc, char *argv[]) {
     // 1. 初始化日志线程
-    logger = initLogger();
     initDevice(NULL);
     // 2. 解析参数
     ClientParams params = parseArgs(argc, argv);
@@ -93,7 +91,7 @@ void *concurRequest(void *args) {
         snprintf(sendBuffer, POST_CONTENT_LEN, "{\"name\":\"%s\", \"mode\": \"concurrent\"}", settings->uid);
         logger.info("[%s]\tRequest: %s.", LOG_INFO, settings->uid, sendBuffer);
         // 2. 发送请求
-        char *res = req.post(settings->server, "{\"name\":\"concur\"}");
+        char *res = req.post(settings->server, sendBuffer);
         // 3. 处理响应
         logger.info("[%s]\tReceive from: %s, response: %s", LOG_INFO, settings->uid, getHeader(res, "Server"), getLoad(res));
         free(res);  // 释放请求strdup返回的内存

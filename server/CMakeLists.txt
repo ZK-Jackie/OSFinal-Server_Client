@@ -17,7 +17,7 @@ file(GLOB_RECURSE SOURCES "src/*.c" "include/*.h")
 # 添加common目录下的所有.c文件
 file(GLOB_RECURSE COMMON_SOURCES "../common/src/*.c" "../common/include/*.h")
 
-add_executable(server  ${SOURCES} ${COMMON_SOURCES})
+add_executable(server ${SOURCES} ${COMMON_SOURCES})
 
 # 添加pthread链接库(2/2)
 target_link_libraries(server PRIVATE Threads::Threads)

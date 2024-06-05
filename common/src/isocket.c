@@ -45,11 +45,18 @@ Req req = {
         .post = post
 };
 
-void iListen(void (*requestHandler)(void *arg)){
+/**
+ * 服务器监听
+ * @param reqHandler 请求处理函数
+ * */
+void iListen(void *(*reqHandler)(void *arg)){
     // 1. 创建socket描述符，domain -- 协议（当前为IPv4） type -- 类型（当前为TCP） protocol -- 协议（0表示默认）
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {   // 创建失败会返回 -1
         exit_error("ERROR opening socket");
+    }
+    if(setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0) {
+        exit_error("setsockopt(SO_REUSEADDR) failed");
     }
     // 2. 确定服务器信息
     struct sockaddr_in serv_addr;
@@ -75,13 +82,14 @@ void iListen(void (*requestHandler)(void *arg)){
         }
         // 6. 打包成Task交由线程池处理
         Task *task = malloc(sizeof(Task));
-        task->func = requestHandler;
+        task->func = reqHandler;
         task->arg = malloc(sizeof(int));
         *(int *)(task->arg) = newsockfd;
         addTask(task);
     }
     close(sockfd);
 }
+
 
 /**
  * 请求服务器
@@ -130,6 +138,7 @@ void iRequest() {
     close(sockfd);
 }
 
+
 /**
  * 请求服务器
  * @note 采用主调函数提供的gethostbyname的服务器信息进行链接，占用资源较少
@@ -177,6 +186,7 @@ char * iRequest2(struct hostent *server, const char *msg) {
     return strdup(res);
 }
 
+
 /**
  * GET请求
  * @param server 服务器信息
@@ -201,6 +211,7 @@ char *get(struct hostent *server, const char *getReqFormat) {
     return iRequest2(server, buffer);
 }
 
+
 /**
  * POST请求
  * @param server 服务器信息
@@ -221,17 +232,19 @@ char *post(struct hostent *server, const char *msg) {
     return iRequest2(server, buffer);
 }
 
+
 /**
- * 从请求中获取Token
+ * 从完整请求报文中获取请求头的值
  * @param msg 请求报文
- * @return Token
+ * @param header 请求头名，当前版本需提供的请求头名与目标请求头名完全一致
+ * @return 返回值
  * */
 char *getHeader(const char *msg, const char *header) {
     char *msgBak = strdup(msg);
     // 1.定义header头部，在msg中查找子串起始位置
     char *valStart = strstr(msgBak, header);
     if (valStart == NULL) {
-        logger.info("Token header not found", LOG_ERROR);
+        logger.info("Header '%s' not found", LOG_ERROR, header);
         return NULL;
     }
     // 2.找到header值的起始位置，即冒号、空格后
@@ -239,7 +252,7 @@ char *getHeader(const char *msg, const char *header) {
     // 3.找到header值的结束位置
     char* valEnd = strstr(valStart, "\r\n");
     if (valEnd == NULL) {
-        logger.info("Malformed msg, no end of line found", LOG_ERROR);
+        logger.info("Malformed msg, no end of line found when reading header '%s'", LOG_ERROR, header);
         return NULL;
     }
     // 4.计算Token Value的长度
@@ -252,6 +265,12 @@ char *getHeader(const char *msg, const char *header) {
     return token;
 }
 
+
+/**
+ * 从POST请求中获取载荷
+ * @param msg 完整请求报文
+ * @return 载荷
+ * */
 char *getLoad(const char *msg) {
     char *msgBak = strdup(msg);
     // 1.找到空行
@@ -269,10 +288,11 @@ char *getLoad(const char *msg) {
     return load;
 }
 
+
 /**
  * 将GET请求参数转换为JSON
- * @param request 请求报文
- * @return JSON
+ * @param request GET请求参数字符串
+ * @return JSON String，GET请求参数字符串转换后的JSONStr
  * */
 char *getReq2JSON(const char *getParams){
     char *getParamsBak = strdup(getParams);
@@ -309,10 +329,11 @@ char *getReq2JSON(const char *getParams){
     return jsonBuffer;
 }
 
+
 /**
- * 从请求中获取请求数据
- * @param request 请求报文
- * @return JSON String
+ * 从完整请求报文中获取负载
+ * @param request 完整请求报文
+ * @return JSON String，负载字符串
  * */
 char *requestResolver(const char *request) {
     char *reqBak = strdup(request);
@@ -356,7 +377,7 @@ char *requestResolver(const char *request) {
 /**
  * 从请求中获取请求数据
  * @param request 请求报文
- * @return JSON String
+ * @param buffer 从客户端的请求中获取报文完整
  * */
 void getRequest(int sockfd, char *buffer){
     bzero(buffer, ACCEPT_MAX_SIZE);
@@ -366,10 +387,11 @@ void getRequest(int sockfd, char *buffer){
     }
 }
 
+
 /**
  * 响应请求
  * @param sockfd socket描述符
- * @param buffer 响应数据
+ * @param buffer 服务端要发送回客户端的完整报文
  * */
 void response(int sockfd, const char *buffer){
     char temp[RESPONSE_MAX_SIZE];
