@@ -6,7 +6,7 @@
 ##############################
 # Target directory
 TARGET_DIR = ../make-target
-TARGET = $(TARGET_DIR)/CLIENT	# Executable name
+TARGET = $(TARGET_DIR)/SERVER	# Executable name
 # Source files
 SRC = $(wildcard ./src/*.c)	# Source files
 # Object files
