@@ -1,65 +1,84 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <errno.h>
 #include "param.h"
 #include "global.h"
+const char USAGE[] = "\nUsage:\n"
+                     "\tSet the number of threads, workload and sleep time:\n"
+                        "\t\t<int> <int> <int>\n"
+                        "\t\tif no key is provided, assume the values are for number of thread, workload and sleep time\n"
+                     "\tSet the number of threads:\n"
+                        "\t\t--threads <int> or -T <int>\n"
+                     "\tSet the workload:\n"
+                        "\t\t--workload <int> or -W <int>\n"
+                        "\t\t 0 for concurrent request and 1 for FIFO\n"
+                     "\tSet the sleep time between requests:\n"
+                        "\t\t--delay <int> or -D <int>\n"
+                        "\t\tsleep time is an integer in seconds\n"
+                    "\tif any key is not provided, defaulting:"
+                    "\t\t- the number of threads to 5"
+                    "\t\t- workload to 0"
+                    "\t\t- sleep time to 2\n";
+
+
+int parseInt(char *str) {
+    char *strtolEndPtr;
+    int num = (int)strtol(str, &strtolEndPtr, 10);
+    if (*strtolEndPtr != '\0' || errno == ERANGE || errno == EINVAL) {
+        printf("Error: Invalid argument '%s'.\n", str);
+        exit(1);
+    }
+    return num;
+}
 
 
 ClientParams parseArgs(int argc, char *argv[]) {
     ClientParams params = {-1, -1, -1}; // Initialize to 0
+    if (argc == 1) {
+        printf("%s", USAGE);
+        exit(1);
+    }
+
+    char isErr = 0;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--thread") == 0 ||
             strcmp(argv[i], "-T") == 0 ||
             strcmp(argv[i], "--threads") == 0 ||
             strcmp(argv[i], "-t") == 0) {
             if (i + 1 < argc) {
-                params.threadNum = atoi(argv[++i]);
+                params.threadNum = parseInt(argv[++i]);
             } else {
-                printf("Error: The key '%s' requires a value.\n", argv[i]);
-                printf("Usage: --thread <int> or -T <int>\n");
-                exit(EXIT_FAILURE);
+                printf("Error: Invalid argument '%s'.\n", argv[i]);
+                ++isErr;
             }
         } else if (strcmp(argv[i], "--workload") == 0 ||
                    strcmp(argv[i], "-W") == 0 ||
                    strcmp(argv[i], "-w") == 0) {
             if (i + 1 < argc) {
-                params.workload = atoi(argv[++i]);
+                params.workload = parseInt(argv[++i]);
             } else {
-                printf("Error: The key '%s' requires a value.\n", argv[i]);
-                printf("Usage: --workload <int> or -W <int>\n");
-                exit(EXIT_FAILURE);
+                printf("Error: Invalid argument '%s'.\n", argv[i]);
+                ++isErr;
             }
         }else if (strcmp(argv[i], "--delay") == 0 ||
                   strcmp(argv[i], "-D") == 0 ||
                   strcmp(argv[i], "-d") == 0) {
             if (i + 1 < argc) {
-                params.sleepTime = atoi(argv[++i]);
+                params.sleepTime = parseInt(argv[++i]);
             } else {
-                printf("Error: The key '%s' requires a value.\n", argv[i]);
-                printf("Usage: --server <string> or -S <string>\n");
-                exit(EXIT_FAILURE);
+                printf("Error: Invalid argument '%s'.\n", argv[i]);
+                ++isErr;
             }
-        } else if (i + 1 < argc) {
+        } else if (i + 2 < argc) {
             // If no key is provided, assume the values are for threadNum and workload
-            params.threadNum = atoi(argv[i]);
-            params.workload = atoi(argv[++i]);
+            params.threadNum = parseInt(argv[1]);
+            params.workload = parseInt(argv[2]);
+            params.sleepTime = parseInt(argv[3]);
         } else {
             printf("Error: Invalid argument '%s'.\n", argv[i]);
-            printf("Usage:\n"
-                   "\t--thread <int> or -T <int>\n"
-                   "\t--workload <int> or -W <int>\n");
-            exit(EXIT_FAILURE);
+            ++isErr;
         }
-    }
-    if (argc == 1) {
-        printf("OS-Simple Web Server-Client. Original by GDOUYJ.compsci-Jackie.\n\n"
-               "Usage: ./client\t[--thread <int> | -T <int>]\n"
-               "\t\t\t[--workload <int> | -W <int>]\n"
-               "\t\t\t[--delay <int> or -D <int>]\n\n"
-               "  -T number of threads to use, default is 5\n"
-               "  -W workload to use, '0' for concurrent request and '1' for FIFO, default is 0\n"
-               "  -D sleep seconds between requests, default is 2\n\n");
-        exit(EXIT_SUCCESS);
     }
     if (params.threadNum == -1) {
         logger.info("Thread number not provided, defaulting to 5", LOG_WARNING);
