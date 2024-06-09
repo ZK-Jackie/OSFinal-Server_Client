@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
+#include <signal.h>
 #define CLIENT_APP_VERSION "1.0.0"
 
 typedef struct {
@@ -18,15 +19,16 @@ typedef struct {
 } RequestSettings;
 
 void concur(RequestSettings settings);
-
 void *concurRequest(void *args);
 
 void fifo(RequestSettings settings);
-
 void *fifoRequest(void *args);
+
+void endHandler();
 
 
 void run(int argc, char *argv[]) {
+    signal(SIGUSR1, endHandler);
     // 1. 初始化日志线程
     initDevice(NULL);
     // 2. 解析参数
@@ -49,6 +51,10 @@ void run(int argc, char *argv[]) {
         logger.info("Running in FIFO mode", LOG_INFO);
         fifo(requestSettings);
     }
+}
+
+void endHandler() {
+
 }
 
 void concur(RequestSettings settings) {
