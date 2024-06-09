@@ -29,4 +29,4 @@ $(OBJS_DIR)/%.o: ./src/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 # Clean
 clean:
-	rm -f $(LIB_OBJS) $(TARGET)
+	rm -f $(OBJS) $(TARGET)
