@@ -1,4 +1,4 @@
-SUBDIRS = client server common
+SUBDIRS = common client server
 
 .PHONY: all $(SUBDIRS)
 

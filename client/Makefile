@@ -4,15 +4,16 @@
 ##############################
 #     PART 1   Variables     #
 ##############################
-# Target directory
+# Target info
 TARGET_DIR = ../make-target
-TARGET = $(TARGET_DIR)/CLIENT	# Executable name
+TARGET = $(TARGET_DIR)/CLIENT
 # Source files
-SRC = $(wildcard ./src/*.c)	# Source files
+SRC = $(wildcard ./src/*.c)
 # Object files
-OBJS = $(SRC:.c=.o)			# Object files
+OBJS_DIR = ../make-target/client/obj
+OBJS = $(patsubst ./src/%.c,$(OBJS_DIR)/%.o,$(SRC))
 # Libraries
-LIBS = -L../common -lcommon -lpthread	# Common libraries
+LIBS = -L$(TARGET_DIR)/common -lcommon -lpthread	# Common libraries
 
 
 ##############################
@@ -32,13 +33,14 @@ CFLAGS = -Wall -g -O2 -I./include -I../common/include
 #     PART 3   Targets       #
 ##############################
 # Compile
-$(TARGET): create_dir $(OBJS)
+$(TARGET): create_dirs $(OBJS)
 	$(CC) $(CFLAGS) -o $(TARGET) $(OBJS) $(LIBS)
 # Default target
-create_dir:
+create_dirs:
 	mkdir -p $(TARGET_DIR)
+	mkdir -p $(OBJS_DIR)
 # Object files
-%.o: %.c
+$(OBJS_DIR)/%.o: ./src/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 # Clean
 clean:
