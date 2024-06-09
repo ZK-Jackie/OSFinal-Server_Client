@@ -65,6 +65,10 @@ void iListen(void *(*reqHandler)(void *arg)){
     serv_addr.sin_addr.s_addr = INADDR_ANY; // 本地地址
     serv_addr.sin_port = htons(SERVER_PORT); // 端口号
     // 3. 绑定socket描述符和服务器信息
+    int opt = 1;
+    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+        exit_error("ERROR setting socket options");
+    }
     if (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
         exit_error("ERROR on binding");
     }
