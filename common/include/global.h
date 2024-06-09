@@ -10,6 +10,8 @@ extern Logger logger;
 extern volatile int running;
 
 extern void exit_error(const char *msg);
+void exit_normal();
+void exit_interrupt();
 extern void destroyDevice();
 
 #endif

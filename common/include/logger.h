@@ -16,6 +16,7 @@ extern const char *LOG_LEVEL_STR[];
 
 typedef struct{
     pthread_t *thread;
+    volatile int isLoggerThreadRunning;
     void (*info)(const char *msg, int level, ...);
 }Logger;
 

@@ -38,6 +38,7 @@ typedef struct pool{
 
 
 void initPools(int threadNum, int bufferSize, void (*callback)(void *arg), ...);
+void destroyPools();
 bool addTask(Task *task);
 
 // 池

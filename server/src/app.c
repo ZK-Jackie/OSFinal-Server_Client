@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <signal.h>
 #define SERVER_APP_VERSION "1.0.0"
 
 const char RESULT_SUCCESS[] = "{\"code\": 200, \"msg\": \"success\", \"data\": %s}";
@@ -43,6 +44,11 @@ void *handleRequest(void *args){
     return NULL;
 }
 
+void endHandler(){
+    logger.info("Server is shutting down...", LOG_INFO);
+    destroyPools();
+}
+
 
 /**
  * 程序运行入口，解析参数，初始化设备、线程池、监听端口
@@ -50,9 +56,10 @@ void *handleRequest(void *args){
  * @param argv 用户输入参数列表
  */
 void run(int argc, char *argv[]){
+    signal(SIGUSR1, endHandler);
     // 1.初始化设备：随机生成当前设备ID、初始化日志线程
-    ServerParams params = parseArgs(argc, argv);
     initDevice(NULL);
+    ServerParams params = parseArgs(argc, argv);
     // 2. 线程池 & 缓冲池初始化
     initPools(params.THREAD_NUM, params.BUFFER_SIZE, NULL);
     // 3. 监听端口，设定请求处理函数

@@ -60,6 +60,7 @@ Logger initLogger(){
     pthread_t *loggerThread = (pthread_t *)malloc(sizeof(pthread_t));
     logger.thread = loggerThread;
     logger.info = log_info;
+    logger.isLoggerThreadRunning = 1;
     // 4. 创建日志线程
     pthread_create(loggerThread, NULL, loggerThreadFunc, NULL);
     // 5. 成功信息
@@ -73,6 +74,7 @@ Logger initLogger(){
  */
 void destroyLogger(){
     // 1. 等待日志线程结束
+    logger.isLoggerThreadRunning = 0;
     pthread_join(*logger.thread, NULL);
     // 2. 释放日志队列
     destroyQueue(logQueue);
@@ -95,13 +97,15 @@ void destroyLogger(){
  * @param args 线程参数
  */
 void *loggerThreadFunc(void *args){
-    while (running){
+    int undoVal = 0;
+    while (logger.isLoggerThreadRunning || undoVal){
         sem_wait(&logQueue->undo);
         sem_wait(&logQueue->mutex);
         LogNode *node = deQueue();
         printf("%s", node->message);
         free(node->message);
         free(node);
+        sem_getvalue(&logQueue->undo, &undoVal);
         sem_post(&logQueue->mutex);
     }
     pthread_exit(NULL);
@@ -115,6 +119,9 @@ void *loggerThreadFunc(void *args){
  * @param ... 日志信息中的可变参数，遵循printf的格式
  */
 void log_info(const char *msg, int level, ...){
+    if(msg == NULL){
+        return;
+    }
     // 保护时间准时性
     sem_wait(&logQueue->mutex);
     // 1. 计算长度

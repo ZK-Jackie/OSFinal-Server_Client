@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include "param.h"
+#include "global.h"
 
 // Usage 提示
 const char USAGE[] = "\nUsage:\n"
@@ -26,7 +27,7 @@ ServerParams parseArgs(int argc, char *argv[]) {
     ServerParams params = {0, 0, NULL}; // Initialize to 0
     if (argc == 1) {
         printf("%s", USAGE);
-        exit(1);
+        exit_normal();
     }
 
     char *strtolEndPtr;  // 辅助检查参数有效性

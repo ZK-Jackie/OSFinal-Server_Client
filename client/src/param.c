@@ -37,9 +37,8 @@ ClientParams parseArgs(int argc, char *argv[]) {
     ClientParams params = {-1, -1, -1}; // Initialize to 0
     if (argc == 1) {
         printf("%s", USAGE);
-        exit(1);
+        exit_normal();
     }
-
     char isErr = 0;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--thread") == 0 ||

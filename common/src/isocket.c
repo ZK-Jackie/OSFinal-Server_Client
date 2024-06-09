@@ -31,7 +31,7 @@ const char RESPONSE[] = "HTTP/1.1 200 OK\r\n"
                        "Content-Type: application/json;charset=utf-8\r\n"
                        "Content-Length: %d\r\n"
                        "Connection: close\r\n"
-                       "Server: SWS/1.0 (Unix) (Ubuntu/Linux)\r\n"
+                       "Server: GDOU SimpleWebServer(SWS)/1.0 (Unix) (Ubuntu/Linux)\r\n"
                        "\r\n"
                        "%s";
 const int RESPONSE_LEN = strlen(RESPONSE);
@@ -295,12 +295,15 @@ char *getLoad(const char *msg) {
  * @return JSON String，GET请求参数字符串转换后的JSONStr
  * */
 char *getReq2JSON(const char *getParams){
+    // 备份getParams
     char *getParamsBak = strdup(getParams);
     char *jsonBuffer = (char *) malloc(GET_MAX_SIZE);
     bzero(jsonBuffer, GET_MAX_SIZE);
+    // 开始拼接json
     strcat(jsonBuffer, "{");
-
-    char *tmp = strtok(getParamsBak, "&");
+    // 分割参数，保证安全
+    char *saveptr;
+    char *tmp = strtok_r(getParamsBak, "&", &saveptr);
     while (tmp != NULL) {
         // 1. 找到等号位置
         int eqPos = (int)(strchr(tmp, '=') - tmp);
@@ -322,7 +325,7 @@ char *getReq2JSON(const char *getParams){
         free(key);
         free(value);
         // 6. 下一个参数
-        tmp = strtok(NULL, "&");
+        tmp = strtok_r(NULL, "&", &saveptr);
     }
     jsonBuffer[strlen(jsonBuffer) - 1] = '}';
     free(getParamsBak);
@@ -337,8 +340,10 @@ char *getReq2JSON(const char *getParams){
  * */
 char *requestResolver(const char *request) {
     char *reqBak = strdup(request);
+    // 保证安全
+    char *saveptr;
     // 1. 查看请求类型
-    char *method = strtok(reqBak, " ");
+    char *method = strtok_r(reqBak, " ", &saveptr);
     if (method == NULL) {
         free(reqBak);
         logger.info("ERROR, invalid request, reading: %s", LOG_ERROR, request);
@@ -353,8 +358,8 @@ char *requestResolver(const char *request) {
             return NULL;
         }
         // 找问号
-        strtok(host, "?");
-        char *ret = getReq2JSON(strtok(NULL, "?"));
+        strtok_r(host, "?", &saveptr);
+        char *ret = getReq2JSON(strtok_r(NULL, "?", &saveptr));
         free(reqBak);
         return ret;
     } else if (strcmp(method, "POST") == 0) {
@@ -375,9 +380,9 @@ char *requestResolver(const char *request) {
 
 
 /**
- * 从请求中获取请求数据
+ * 从socket描述符中获取请求报文
  * @param request 请求报文
- * @param buffer 从客户端的请求中获取报文完整
+ * @param buffer 从客户端的请求中获取完整报文
  * */
 void getRequest(int sockfd, char *buffer){
     bzero(buffer, ACCEPT_MAX_SIZE);

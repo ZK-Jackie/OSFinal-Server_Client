@@ -7,7 +7,8 @@ ThreadPool *pool = NULL;
 
 void *routine();
 
-TaskBufferQueue *bufferInit(int bufferSize);
+TaskBufferQueue *initBufferQ(int bufferSize);
+void destroyBufferQ(TaskBufferQueue **bufferQueue);
 
 
 /**
@@ -21,7 +22,7 @@ void initPools(int threadNum, int bufferSize, void (*callback)(void *arg), ...) 
     logger.info("Thread pool & buffer pool init.", LOG_INFO);
     pool = (ThreadPool *) malloc(sizeof(ThreadPool));
     // 1. 缓冲任务环形队列初始化
-    TaskBufferQueue *initBuffers = bufferInit(bufferSize);
+    TaskBufferQueue *initBuffers = initBufferQ(bufferSize);
     // 2. 线程池信号量初始化
     bool isSemInitSuccess = false;
     isSemInitSuccess = sem_init(&pool->idle, 0, threadNum) == 0;
@@ -54,11 +55,34 @@ void initPools(int threadNum, int bufferSize, void (*callback)(void *arg), ...) 
 
 
 /**
+ * 销毁线程池
+ * */
+void destroyPools() {
+    logger.info("Thread pool & buffer pool destroy.", LOG_INFO);
+    running = false;
+    // 1. 释放线程
+    for (int i = 0; i < pool->threadNum; i++) {
+        pthread_cancel(pool->threadList[i]);
+    }
+    free(pool->threadList);
+    // 2. 释放缓冲区
+    destroyBufferQ(&pool->buffer);
+    // 3. 释放信号量
+    sem_destroy(&pool->idle);
+    sem_destroy(&pool->work);
+    sem_destroy(&pool->mutex);
+    // 4. 释放线程池
+    free(pool);
+    pool = NULL;
+    logger.info("Thread pool & buffer pool destroy success.", LOG_INFO);
+}
+
+/**
  * 初始化缓冲区
  * @param bufferSize 缓冲区大小
  * @return 缓冲队列
  * */
-TaskBufferQueue *bufferInit(int bufferSize) {
+TaskBufferQueue *initBufferQ(int bufferSize) {
     // 1. 构造&初始化缓冲环形队列
     TaskNode *head = (TaskNode *) malloc(sizeof(TaskNode));    // 头节点
     if (head == NULL) {
@@ -104,6 +128,24 @@ TaskBufferQueue *bufferInit(int bufferSize) {
     }
     // 3. 返回
     return bufferQueue;
+}
+
+void destroyBufferQ(TaskBufferQueue **bufferQueue) {
+    // 释放缓冲区
+    TaskNode *temp = pool->buffer->head;
+    TaskNode *next = NULL;
+    for (int i = 0; i <= pool->bufferSize; i++) {
+        next = temp->next;
+        free(temp);
+        temp = next;
+    }
+    // 释放信号量
+    sem_destroy(&pool->buffer->mutex);
+    sem_destroy(&pool->buffer->undo);
+    sem_destroy(&pool->buffer->done);
+    // 释放缓冲区
+    free(pool->buffer);
+    *bufferQueue = NULL;
 }
 
 
@@ -182,7 +224,9 @@ bool isBufferEmpty() {
 void *routine() {
     while (running) {
         // 1. 等待有任务
-        sem_wait(&pool->work);
+        if(sem_wait(&pool->work) == -1){
+            break;
+        }
         // 2. 获取并执行任务
         Task *task = pushTask();
         task->func(task->arg);
